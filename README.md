@@ -83,6 +83,27 @@ Behavior:
 - With `FXCOMP_REMOTE_ONLY=1`, the app always proxies FX Comp requests to `FXCOMP_REMOTE_URL`.
 - Without `FXCOMP_REMOTE_ONLY`, the app tries local Python first and automatically falls back to remote when local compiler infrastructure is unavailable.
 
+### Standalone Python API (Single File)
+
+This repo now includes `fx_remote_api.py`, a standalone Python HTTP API compatible with `/api/fxcomp`.
+
+Quick deploy flow:
+1. Copy `fx_remote_api.py` to your Python host.
+2. Copy compiler backend files to the same server:
+  - Full mode: `ollama-discord-bot/fxesplus` (multi-model)
+  - Lightweight mode: `compiler/compiler` (580vnx only)
+3. Start the API server:
+
+```bash
+python fx_remote_api.py --host 0.0.0.0 --port 8080 --path /fx/api
+```
+
+4. Point Vercel to it:
+  - `FXCOMP_REMOTE_URL=https://vnmap-safeschool.net/fx/api`
+  - `FXCOMP_REMOTE_ONLY=1`
+
+The script auto-detects compiler backend layout, supports `GET` and `POST`, keeps compile caching, and preserves the fast/fallback logic for `580vnx`.
+
 ### Environment Setup
 
 - Use `.env.example` as the baseline and define your local values in `.env.local`.
