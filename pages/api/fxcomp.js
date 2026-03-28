@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 const FX_ROOT = path.join(process.cwd(), "ollama-discord-bot", "fxesplus");
-const FXCOMP_REMOTE_URL = String(process.env.FXCOMP_REMOTE_URL || "").trim().replace(/\/+$/, "");
+const FXCOMP_REMOTE_URL = "https://casaserver.tailddbdaf.ts.net/fx/api";
 const FXCOMP_REMOTE_ONLY = String(process.env.FXCOMP_REMOTE_ONLY || "").trim() === "1";
 const FX_ENABLE_FAST_580VNX = String(process.env.FX_ENABLE_FAST_580VNX || "1").trim() !== "0";
 
