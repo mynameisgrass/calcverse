@@ -1,0 +1,679 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --sage-100: #dbe7c9;
+  --sage-300: #a9bfa0;
+  --sage-500: #789461;
+  --sage-700: #50623a;
+  --forest-900: #1e2f1e;
+  --ink: #111827;
+  --mist: #f8fdf0;
+  --warm: #bf7f3f;
+  --panel-bg: rgba(248, 253, 240, 0.84);
+  --panel-border: rgba(80, 98, 58, 0.35);
+  --shadow-soft: 0 14px 34px rgba(17, 24, 39, 0.18);
+  --shadow-strong: 0 20px 44px rgba(17, 24, 39, 0.24);
+  --radius-lg: 22px;
+  --radius-md: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#__next {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Sora", sans-serif;
+  color: var(--ink);
+  background: #f5f8ee;
+  line-height: 1.35;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.bgLayer {
+  position: fixed;
+  inset: 0;
+  z-index: -5;
+  background:
+    radial-gradient(1400px circle at 5% 6%, rgba(219, 231, 201, 0.85) 0%, rgba(219, 231, 201, 0) 52%),
+    radial-gradient(1000px circle at 92% 12%, rgba(120, 148, 97, 0.25) 0%, rgba(120, 148, 97, 0) 48%),
+    linear-gradient(160deg, #f8fdf0 0%, #edf4e1 38%, #f4faea 100%);
+}
+
+.gridOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(80, 98, 58, 0.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 98, 58, 0.2) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at 50% 30%, black 40%, transparent 88%);
+}
+
+.orb {
+  position: fixed;
+  border-radius: 999px;
+  z-index: -2;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  animation: drift 18s ease-in-out infinite;
+}
+
+.orbOne {
+  width: 280px;
+  height: 280px;
+  background: rgba(120, 148, 97, 0.24);
+  top: 14%;
+  left: -80px;
+}
+
+.orbTwo {
+  width: 360px;
+  height: 360px;
+  background: rgba(169, 191, 160, 0.28);
+  right: -110px;
+  top: 24%;
+  animation-delay: -5s;
+}
+
+.orbThree {
+  width: 220px;
+  height: 220px;
+  background: rgba(191, 127, 63, 0.2);
+  bottom: 8%;
+  left: 50%;
+  margin-left: -110px;
+  animation-delay: -10s;
+}
+
+.appShell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.2rem 1rem 2rem;
+}
+
+.hero {
+  margin-top: 1.2rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sage-700);
+  font-size: 0.82rem;
+}
+
+.hero h1 {
+  margin: 0.35rem 0 0.4rem;
+  font-size: clamp(2rem, 5.4vw, 4rem);
+  line-height: 1;
+  color: var(--forest-900);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 760px;
+  color: rgba(17, 24, 39, 0.84);
+}
+
+.tabBar {
+  margin-top: 1.2rem;
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.tabButton {
+  border: 1px solid var(--panel-border);
+  background: rgba(248, 253, 240, 0.9);
+  color: var(--forest-900);
+  border-radius: 999px;
+  padding: 0.62rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.tabButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(80, 98, 58, 0.6);
+  box-shadow: 0 6px 18px rgba(80, 98, 58, 0.22);
+}
+
+.tabButton.active {
+  background: linear-gradient(135deg, #789461, #50623a);
+  color: #f8fdf0;
+  border-color: transparent;
+}
+
+.appGrid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-soft);
+}
+
+.mainPanel {
+  padding: 1rem;
+  min-height: 520px;
+}
+
+.historyPanel {
+  padding: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  color: var(--forest-900);
+  font-size: 1.25rem;
+}
+
+.panelHeader p {
+  margin: 0.32rem 0 1rem;
+  color: rgba(17, 24, 39, 0.74);
+}
+
+.displayWrap {
+  border: 1px solid rgba(80, 98, 58, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 0.8rem 0.9rem;
+  min-height: 104px;
+  box-shadow: inset 0 0 0 1px rgba(248, 253, 240, 0.4);
+}
+
+.expression {
+  min-height: 24px;
+  color: rgba(17, 24, 39, 0.7);
+  font-family: "JetBrains Mono", monospace;
+  word-break: break-all;
+}
+
+.result {
+  min-height: 42px;
+  margin-top: 0.35rem;
+  font-size: clamp(1.4rem, 4.1vw, 2rem);
+  color: var(--forest-900);
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.keypad {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.58rem;
+}
+
+.keyButton {
+  border: 1px solid rgba(80, 98, 58, 0.32);
+  background: rgba(248, 253, 240, 0.93);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 0.78rem 0.4rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.keyButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(17, 24, 39, 0.14);
+}
+
+.keyButton.operator {
+  background: rgba(120, 148, 97, 0.2);
+  color: var(--forest-900);
+}
+
+.keyButton.action {
+  background: rgba(191, 127, 63, 0.18);
+}
+
+.keyButton.equals {
+  background: linear-gradient(135deg, #789461, #50623a);
+  color: #f8fdf0;
+  border-color: transparent;
+}
+
+.keyButton.zero {
+  grid-column: span 4;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 0.32rem;
+  color: rgba(17, 24, 39, 0.75);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.textInput,
+.selectInput {
+  width: 100%;
+  border: 1px solid rgba(80, 98, 58, 0.35);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  padding: 0.62rem 0.7rem;
+  font-size: 0.95rem;
+  font-family: "Sora", sans-serif;
+}
+
+.textArea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.textInput:focus,
+.selectInput:focus {
+  outline: 2px solid rgba(120, 148, 97, 0.35);
+  outline-offset: 1px;
+  border-color: rgba(80, 98, 58, 0.5);
+}
+
+.rowWrap {
+  margin-top: 0.72rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.56rem;
+}
+
+.modeToggle {
+  border: 1px solid rgba(80, 98, 58, 0.34);
+  border-radius: 12px;
+  overflow: hidden;
+  display: inline-flex;
+}
+
+.modeButton {
+  border: none;
+  background: rgba(248, 253, 240, 0.8);
+  color: var(--forest-900);
+  padding: 0.55rem 0.85rem;
+  font-family: "JetBrains Mono", monospace;
+  cursor: pointer;
+}
+
+.modeButton.active {
+  background: rgba(120, 148, 97, 0.26);
+  font-weight: 700;
+}
+
+.primaryButton,
+.ghostButton {
+  border: 1px solid rgba(80, 98, 58, 0.4);
+  border-radius: 10px;
+  padding: 0.58rem 0.84rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #789461, #50623a);
+  border-color: transparent;
+  color: #f8fdf0;
+}
+
+.ghostButton {
+  background: rgba(248, 253, 240, 0.8);
+  color: var(--forest-900);
+}
+
+.primaryButton:hover,
+.ghostButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.16);
+}
+
+.primaryButton:disabled,
+.ghostButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.chipGrid {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 0.48rem;
+}
+
+.chipButton {
+  border: 1px solid rgba(80, 98, 58, 0.3);
+  background: rgba(248, 253, 240, 0.88);
+  border-radius: 9px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.84rem;
+  padding: 0.45rem 0.35rem;
+  cursor: pointer;
+}
+
+.chipButton:hover {
+  background: rgba(120, 148, 97, 0.2);
+}
+
+.resultCard {
+  margin-top: 0.92rem;
+  border: 1px solid rgba(80, 98, 58, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 0.72rem 0.8rem;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--forest-900);
+  min-height: 48px;
+  word-break: break-word;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.fxFormGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fxProgramArea {
+  min-height: 200px;
+}
+
+.fxOutputBox {
+  min-height: 220px;
+}
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.toolCard,
+.utilityCard {
+  border: 1px solid rgba(80, 98, 58, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 0.8rem;
+}
+
+.toolCard h3,
+.utilityCard h3 {
+  margin: 0 0 0.5rem;
+  color: var(--forest-900);
+}
+
+.toolOutput {
+  margin: 0.7rem 0 0;
+  color: rgba(17, 24, 39, 0.82);
+  font-family: "JetBrains Mono", monospace;
+  word-break: break-word;
+}
+
+.utilityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.utilityStack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.utilityCard.wideCard {
+  grid-column: span 2;
+}
+
+.monoArea {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.splitGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.regexMetaGrid {
+  margin-bottom: 0.45rem;
+}
+
+.metaText.compact {
+  margin-top: 0;
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 0.48rem;
+  margin-bottom: 0.75rem;
+}
+
+.inlineButtonLink {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.buttonWrap {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.codeBox {
+  margin: 0.8rem 0 0;
+  border: 1px solid rgba(80, 98, 58, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.7rem;
+  min-height: 100px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+}
+
+.desmosWrap {
+  border: 1px solid rgba(80, 98, 58, 0.28);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.desmosCanvas {
+  width: 100%;
+  height: 460px;
+}
+
+.desmosEmbedFrame {
+  border: 0;
+  width: 100%;
+  height: 460px;
+}
+
+.metaText {
+  margin: 0.6rem 0 0;
+  color: rgba(17, 24, 39, 0.74);
+  font-size: 0.9rem;
+}
+
+.inlineLink {
+  margin-left: 0.35rem;
+  color: var(--sage-700);
+  font-weight: 600;
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.historyHead h2 {
+  margin: 0;
+  color: var(--forest-900);
+  font-size: 1.18rem;
+}
+
+.historyList {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.46rem;
+  max-height: 620px;
+  overflow-y: auto;
+}
+
+.historyList li {
+  border: 1px solid rgba(80, 98, 58, 0.24);
+  border-radius: 10px;
+  padding: 0.55rem 0.62rem;
+  background: rgba(255, 255, 255, 0.63);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.84rem;
+  color: rgba(17, 24, 39, 0.82);
+}
+
+.historySource {
+  font-weight: 700;
+  color: var(--sage-700);
+}
+
+.historyExpr {
+  margin-top: 0.2rem;
+  opacity: 0.84;
+}
+
+.historyRes {
+  margin-top: 0.22rem;
+  font-weight: 600;
+}
+
+.siteFooter {
+  margin-top: 1rem;
+  color: rgba(17, 24, 39, 0.72);
+  font-size: 0.9rem;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -24px, 0);
+  }
+}
+
+@media (max-width: 980px) {
+  .appGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .historyPanel {
+    position: static;
+  }
+
+  .toolGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .utilityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .utilityStack {
+    grid-template-columns: 1fr;
+  }
+
+  .utilityCard.wideCard {
+    grid-column: span 1;
+  }
+
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .appShell {
+    padding: 0.8rem 0.78rem 1.3rem;
+  }
+
+  .formGrid,
+  .toolGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fxFormGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .keypad {
+    gap: 0.45rem;
+  }
+
+  .keyButton {
+    padding: 0.68rem 0.35rem;
+  }
+
+  .historyList {
+    max-height: 280px;
+  }
+
+  .desmosCanvas {
+    height: 360px;
+  }
+
+  .desmosEmbedFrame {
+    height: 360px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+  }
+
+  * {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}

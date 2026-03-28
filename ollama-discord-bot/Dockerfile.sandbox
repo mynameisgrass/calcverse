@@ -1,0 +1,11 @@
+FROM node:20-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    python3 g++ bash neofetch \
+ && ln -sf /usr/bin/python3 /usr/bin/python \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+CMD ["tail", "-f", "/dev/null"]

@@ -1,0 +1,4 @@
+[user] Topic: long chat
+[user] hello
+[user] hello
+[user] !stopchat

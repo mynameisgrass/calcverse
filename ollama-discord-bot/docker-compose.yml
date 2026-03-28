@@ -1,0 +1,27 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  bot:
+    build: .
+    container_name: ollama-discord-bot
+    depends_on:
+      - ollama
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./fxesplus:/app/fxesplus:ro
+    ports:
+      - "3210:3210"
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
