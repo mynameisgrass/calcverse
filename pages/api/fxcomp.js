@@ -153,6 +153,7 @@ function shouldFallbackToRemote(errorMessage) {
   const message = String(errorMessage || "").toLowerCase();
   return (
     message.includes("failed to start python process") ||
+    message.includes("python interpreter not found") ||
     message.includes("no fx compiler models are available") ||
     message.includes("fxesplus folder not found") ||
     message.includes("spawn") ||
@@ -190,12 +191,43 @@ async function callRemoteFxcomp(method, payload) {
   return json;
 }
 
-function getPythonCommand() {
-  if (process.env.PYTHON_BIN && process.env.PYTHON_BIN.trim()) {
-    return process.env.PYTHON_BIN.trim();
+function getPythonCandidates() {
+  const configured = String(process.env.PYTHON_BIN || "").trim();
+  const defaults = process.platform === "win32"
+    ? [
+        { command: "python", prefixArgs: [] },
+        { command: "py", prefixArgs: ["-3"] },
+        { command: "py", prefixArgs: [] },
+      ]
+    : [
+        { command: "python3", prefixArgs: [] },
+        { command: "python", prefixArgs: [] },
+        { command: "python3.12", prefixArgs: [] },
+        { command: "python3.11", prefixArgs: [] },
+        { command: "python3.10", prefixArgs: [] },
+      ];
+
+  const combined = configured ? [{ command: configured, prefixArgs: [] }, ...defaults] : defaults;
+  const unique = [];
+  const seen = new Set();
+
+  for (const candidate of combined) {
+    const key = [candidate.command, ...candidate.prefixArgs].join(" ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
   }
 
-  return process.platform === "win32" ? "python" : "python3";
+  return unique;
+}
+
+function formatPythonCandidate(candidate) {
+  return [candidate.command, ...(candidate.prefixArgs || [])].join(" ").trim();
+}
+
+function getPythonCommand() {
+  const candidates = getPythonCandidates();
+  return candidates.length ? formatPythonCandidate(candidates[0]) : "python";
 }
 
 function buildModelMeta(model) {
@@ -220,14 +252,21 @@ function pickValueOrDefault(value, allowed, fallback) {
   return fallback;
 }
 
-function runCompile(modelMeta, program, options) {
-  const pythonCommand = getPythonCommand();
+function runCompileWithCandidate(candidate, modelMeta, program, options) {
   const timeoutMs = options.timeoutMs;
   const extraArgs = Array.isArray(options.extraArgs) ? options.extraArgs : [];
-  const args = [modelMeta.scriptPath, "-f", options.format, "-t", options.target, ...extraArgs];
+  const args = [
+    ...(candidate.prefixArgs || []),
+    modelMeta.scriptPath,
+    "-f",
+    options.format,
+    "-t",
+    options.target,
+    ...extraArgs,
+  ];
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(pythonCommand, args, { cwd: modelMeta.cwd });
+    const proc = spawn(candidate.command, args, { cwd: modelMeta.cwd });
 
     let stdout = "";
     let stderr = "";
@@ -247,7 +286,14 @@ function runCompile(modelMeta, program, options) {
 
     proc.on("error", (error) => {
       clearTimeout(timer);
-      reject(new Error(`Failed to start Python process (${pythonCommand}). ${error.message}`));
+      if (error?.code === "ENOENT") {
+        const missing = new Error(`Python interpreter candidate missing: ${formatPythonCandidate(candidate)}`);
+        missing.code = "INTERPRETER_NOT_FOUND";
+        reject(missing);
+        return;
+      }
+
+      reject(new Error(`Failed to start Python process (${formatPythonCandidate(candidate)}). ${error.message}`));
     });
 
     proc.on("close", (code) => {
@@ -265,6 +311,28 @@ function runCompile(modelMeta, program, options) {
     proc.stdin.write(program);
     proc.stdin.end();
   });
+}
+
+async function runCompile(modelMeta, program, options) {
+  const candidates = getPythonCandidates();
+  const missing = [];
+
+  for (const candidate of candidates) {
+    try {
+      return await runCompileWithCandidate(candidate, modelMeta, program, options);
+    } catch (error) {
+      if (error?.code === "INTERPRETER_NOT_FOUND") {
+        missing.push(formatPythonCandidate(candidate));
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  const tried = missing.length ? missing.join(", ") : "(none)";
+  throw new Error(
+    `Python interpreter not found on server. Tried: ${tried}. Set PYTHON_BIN or configure FXCOMP_REMOTE_URL.`
+  );
 }
 
 function parseTimeout(rawTimeout) {
@@ -300,6 +368,7 @@ export default async function handler(request, response) {
 
     const models = FX_MODEL_ORDER.map((id) => buildModelMeta(FX_MODELS[id]));
     const hasAvailableLocal = models.some((model) => model.available);
+    const pythonCandidates = getPythonCandidates().map(formatPythonCandidate);
 
     if (!hasAvailableLocal && remoteConfigured()) {
       try {
@@ -318,6 +387,7 @@ export default async function handler(request, response) {
           fxRoot: FX_ROOT,
           fxRootExists: fs.existsSync(FX_ROOT),
           pythonCommand: getPythonCommand(),
+          pythonCandidates,
           remoteConfigured: true,
           remoteWarning: error.message,
           models: models.map((model) => ({
@@ -339,6 +409,7 @@ export default async function handler(request, response) {
       fxRoot: FX_ROOT,
       fxRootExists: fs.existsSync(FX_ROOT),
       pythonCommand: getPythonCommand(),
+      pythonCandidates,
       remoteConfigured: remoteConfigured(),
       models: models.map((model) => ({
         id: model.id,
@@ -512,6 +583,19 @@ export default async function handler(request, response) {
         } catch (error) {
           errors.push(`${modelMeta.id}: ${error.message.split("\n")[0]}`);
         }
+      }
+
+      const allInterpreterMissing =
+        errors.length === autoOrderedModels.length &&
+        errors.every((entry) => entry.toLowerCase().includes("python interpreter not found"));
+
+      if (allInterpreterMissing) {
+        const concise =
+          "Python runtime is unavailable in this deployment. Set PYTHON_BIN (if available) or configure FXCOMP_REMOTE_URL for remote compilation.";
+        const handled = await tryRemoteFallback(concise);
+        if (handled) return;
+        payloadError(response, 500, concise);
+        return;
       }
 
       const allErrorMessage = `All models failed. ${errors.join(" | ")}`;

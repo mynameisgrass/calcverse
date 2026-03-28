@@ -65,6 +65,7 @@ http://localhost:3000
 - `580vnx` uses a fast compile path (`--command-source gadgets`) with automatic fallback to full mode when needed.
 - Ensure Python is available on the host machine.
 - Optional: set `PYTHON_BIN` if your Python executable is not on the default command (`python` on Windows, `python3` on Linux/macOS).
+- The API now tries multiple interpreter commands automatically (`python3`, `python`, and common versioned names), but on Vercel you can force one with `PYTHON_BIN=python` if `python3` is missing.
 - Optional performance envs:
   - `FX_ENABLE_FAST_580VNX=1`
   - `FX_CACHE_TTL_MS=120000`
