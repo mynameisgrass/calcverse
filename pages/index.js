@@ -1027,7 +1027,7 @@ export default function Home() {
 
     async function loadFxModels() {
       try {
-        const response = await fetch("/api/fxcomp");
+        const response = await fetch("https://casaserver.tailddbdaf.ts.net:8443/api/fxcomp");
         const payload = await response.json();
 
         if (!response.ok || !payload.ok) {
