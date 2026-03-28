@@ -409,6 +409,14 @@ body {
   min-height: 200px;
 }
 
+.fxDecompArea {
+  min-height: 150px;
+}
+
+.fxDecompCard {
+  margin-top: 0.8rem;
+}
+
 .fxOutputBox {
   min-height: 220px;
 }

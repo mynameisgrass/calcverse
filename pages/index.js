@@ -73,6 +73,33 @@ const FX_MODELS_FALLBACK = [
   },
 ];
 
+const FX_PROGRAM_SNIPPETS = [
+  {
+    id: "minimal-byte",
+    label: "Minimal Byte (safe test)",
+    model: "auto",
+    format: "hex",
+    target: "overflow",
+    program: "0x00",
+  },
+  {
+    id: "hex-burst",
+    label: "Hex Burst",
+    model: "auto",
+    format: "hex",
+    target: "overflow",
+    program: "hex: fd 24 30 30",
+  },
+  {
+    id: "label-byte",
+    label: "Label + Byte",
+    model: "auto",
+    format: "hex",
+    target: "overflow",
+    program: "home:\n0x00",
+  },
+];
+
 const DESMOS_API_KEY = process.env.NEXT_PUBLIC_DESMOS_API_KEY || "";
 const DESMOS_INTERACTIVE_ENABLED = Boolean(DESMOS_API_KEY);
 
@@ -914,6 +941,16 @@ function isOperator(char) {
   return ["+", "-", "*", "/", "%"].includes(char);
 }
 
+function extractFxOutputBlock(text) {
+  const normalized = String(text || "");
+  const marker = "Output:\n";
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex >= 0) {
+    return normalized.slice(markerIndex + marker.length).trim();
+  }
+  return normalized.trim();
+}
+
 function ConverterUnitOption({ unitKey, unitLabel }) {
   return <option value={unitKey}>{unitLabel}</option>;
 }
@@ -996,6 +1033,11 @@ export default function Home() {
   const [fxProgram, setFxProgram] = useState("# Paste fx compiler program here\n");
   const [fxOutput, setFxOutput] = useState("FX compiler output appears here.");
   const [fxBusy, setFxBusy] = useState(false);
+  const [fxSnippetId, setFxSnippetId] = useState(FX_PROGRAM_SNIPPETS[0].id);
+  const [fxDecompInput, setFxDecompInput] = useState("0x8da4: 00");
+  const [fxDecompOutput, setFxDecompOutput] = useState("FX decompiler output appears here.");
+  const [fxDecompBusy, setFxDecompBusy] = useState(false);
+  const [fxRandomByteCount, setFxRandomByteCount] = useState("16");
 
   const [desmosExpression, setDesmosExpression] = useState(DESMOS_PRESETS[0].expression);
   const [desmosMessage, setDesmosMessage] = useState(
@@ -1853,6 +1895,84 @@ export default function Home() {
     }
   }
 
+  function loadFxSnippet() {
+    const snippet = FX_PROGRAM_SNIPPETS.find((item) => item.id === fxSnippetId);
+    if (!snippet) return;
+
+    setFxModel(snippet.model);
+    setFxFormat(snippet.format);
+    setFxTarget(snippet.target);
+    setFxProgram(snippet.program);
+    setFxOutput("FX compiler output appears here.");
+  }
+
+  function generateRandomFxPayload() {
+    const parsed = Number.parseInt(fxRandomByteCount, 10);
+    const count = Math.max(1, Math.min(Number.isFinite(parsed) ? parsed : 16, 256));
+    const bytes = Array.from({ length: count }, () => Math.floor(Math.random() * 256));
+    const hex = bytes.map((value) => value.toString(16).padStart(2, "0")).join(" ");
+
+    setFxRandomByteCount(String(count));
+    setFxDecompInput("0x8da4: " + hex);
+    setFxDecompOutput("FX decompiler output appears here.");
+  }
+
+  function useCompilerOutputForDecomp() {
+    const extracted = extractFxOutputBlock(fxOutput);
+    if (!extracted || extracted.startsWith("Error:")) {
+      setFxDecompOutput("Error: Compiler output is empty or invalid for decompile input.");
+      return;
+    }
+
+    setFxDecompInput(extracted);
+  }
+
+  async function decompileFxPayload() {
+    const input = fxDecompInput.trim();
+    if (!input) {
+      setFxDecompOutput("Error: Decompiler input is empty.");
+      return;
+    }
+
+    setFxDecompBusy(true);
+    try {
+      const response = await fetch("/api/fxdecomp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          input,
+        }),
+      });
+
+      const payload = await response
+        .json()
+        .catch(() => ({ ok: false, error: "Invalid response from fx decompiler backend." }));
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Decompile failed.");
+      }
+
+      const lines = [
+        "Mode: " + (payload.mode || "best-effort"),
+        "Bytes: " + payload.byteCount + (payload.baseAddress ? " (base " + payload.baseAddress + ")" : ""),
+      ];
+
+      if (payload.summary) {
+        lines.push("Summary: " + payload.summary);
+      }
+
+      lines.push("", payload.output || "(empty decompile output)");
+      setFxDecompOutput(lines.join("\n"));
+      addHistory("FXDecomp", payload.byteCount + " bytes", payload.mode || "best-effort");
+    } catch (error) {
+      setFxDecompOutput("Error: " + (error instanceof Error ? error.message : "Decompile failed."));
+    } finally {
+      setFxDecompBusy(false);
+    }
+  }
+
   async function compileFxProgram() {
     const program = fxProgram.trim();
     if (!program) {
@@ -1893,6 +2013,9 @@ export default function Home() {
 
       lines.push("Output:\n" + (payload.output || "(empty output)"));
       setFxOutput(lines.join("\n\n"));
+      if (payload.output) {
+        setFxDecompInput(payload.output);
+      }
       addHistory("FXComp", payload.model + " " + payload.format + "/" + payload.target, "Compiled");
     } catch (error) {
       setFxOutput("Error: " + (error instanceof Error ? error.message : "Compilation failed."));
@@ -2271,6 +2394,50 @@ export default function Home() {
                   </div>
                 </div>
 
+                <div className="formGrid">
+                  <div>
+                    <label className="fieldLabel" htmlFor="fx-snippet">
+                      Quick Program Snippet
+                    </label>
+                    <select
+                      id="fx-snippet"
+                      className="selectInput"
+                      value={fxSnippetId}
+                      onChange={(event) => setFxSnippetId(event.target.value)}
+                    >
+                      {FX_PROGRAM_SNIPPETS.map((snippet) => (
+                        <option key={snippet.id} value={snippet.id}>
+                          {snippet.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="fieldLabel" htmlFor="fx-random-byte-count">
+                      Random Payload Size (bytes)
+                    </label>
+                    <input
+                      id="fx-random-byte-count"
+                      className="textInput"
+                      type="number"
+                      min="1"
+                      max="256"
+                      value={fxRandomByteCount}
+                      onChange={(event) => setFxRandomByteCount(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="buttonWrap">
+                  <button className="ghostButton" type="button" onClick={loadFxSnippet}>
+                    Load Snippet
+                  </button>
+                  <button className="ghostButton" type="button" onClick={generateRandomFxPayload}>
+                    Generate Random Payload
+                  </button>
+                </div>
+
                 <label className="fieldLabel" htmlFor="fx-program">
                   FX Program Input
                 </label>
@@ -2286,10 +2453,44 @@ export default function Home() {
                   <button className="primaryButton" type="button" onClick={compileFxProgram} disabled={fxBusy}>
                     {fxBusy ? "Compiling..." : "Compile FX Program"}
                   </button>
+                  <button className="ghostButton" type="button" onClick={useCompilerOutputForDecomp}>
+                    Use Compile Output For Decomp
+                  </button>
                 </div>
 
                 <p className="metaText">{fxBackendStatus}</p>
                 <pre className="codeBox fxOutputBox">{fxOutput}</pre>
+
+                <div className="toolCard fxDecompCard">
+                  <h3>FX Decompiler (best-effort)</h3>
+                  <p className="metaText compact">
+                    Paste compiled output or hex dump to inspect bytes, ASCII preview, and little-endian words.
+                  </p>
+
+                  <label className="fieldLabel" htmlFor="fx-decomp-input">
+                    Decompiler Input
+                  </label>
+                  <textarea
+                    id="fx-decomp-input"
+                    className="textInput textArea monoArea fxDecompArea"
+                    value={fxDecompInput}
+                    onChange={(event) => setFxDecompInput(event.target.value)}
+                    placeholder="Example: 0x8da4: 00 12 34"
+                  />
+
+                  <div className="buttonWrap">
+                    <button
+                      className="primaryButton"
+                      type="button"
+                      onClick={decompileFxPayload}
+                      disabled={fxDecompBusy}
+                    >
+                      {fxDecompBusy ? "Decompiling..." : "Decompile Payload"}
+                    </button>
+                  </div>
+
+                  <pre className="codeBox fxOutputBox">{fxDecompOutput}</pre>
+                </div>
               </div>
             ) : null}
 
