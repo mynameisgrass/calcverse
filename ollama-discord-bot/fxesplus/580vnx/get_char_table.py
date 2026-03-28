@@ -1,5 +1,6 @@
 #!/bin/python
 # reimplementation of f_208F2 - char to str
+import os
 
 LOOKUP = {
 		0x00:(0x2432,0x2612),
@@ -9,8 +10,23 @@ LOOKUP = {
 		0xfb:(0x1E82,0x1F22),
 		}
 
-with open(r'rom.bin','rb') as f:
-	rom=f.read()
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROM_CANDIDATES = [
+	os.path.abspath(os.path.join(SCRIPT_DIR, '../../setup/rom.bin')),
+	os.path.abspath(os.path.join(SCRIPT_DIR, 'rom.bin')),
+]
+
+rom_path = None
+for candidate in ROM_CANDIDATES:
+	if os.path.exists(candidate):
+		rom_path = candidate
+		break
+
+if rom_path is None:
+	raise FileNotFoundError('Could not locate rom.bin (tried ../../setup/rom.bin and ./rom.bin).')
+
+with open(rom_path, 'rb') as f:
+	rom = f.read()
 
 ROMWINDOW = 0xd000
 

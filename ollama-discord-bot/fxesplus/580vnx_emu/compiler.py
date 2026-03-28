@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import sys,os
+import sys,os,itertools
 os.chdir(os.path.dirname(__file__))
 sys.path.append('..')
 from libcompiler import (

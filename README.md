@@ -60,8 +60,22 @@ http://localhost:3000
 ### Runtime Requirements For FX Comp
 
 - The FX compiler panel runs Python scripts from `ollama-discord-bot/fxesplus` through Next API routes.
+- The `580vnx` model now uses merged improvements from the newer compiler algorithm package.
 - Ensure Python is available on the host machine.
 - Optional: set `PYTHON_BIN` if your Python executable is not on the default command (`python` on Windows, `python3` on Linux/macOS).
+
+### Vercel With FX Comp Enabled
+
+Node serverless functions may not always allow local Python execution. To keep FX Comp available on Vercel:
+
+1. Deploy a separate compiler service (any host with Python) that exposes the same JSON contract as `/api/fxcomp`.
+2. In Vercel project environment variables, set:
+  - `FXCOMP_REMOTE_URL=https://your-compiler-host/api/fxcomp`
+  - `FXCOMP_REMOTE_ONLY=1` (optional, force remote mode)
+
+Behavior:
+- With `FXCOMP_REMOTE_ONLY=1`, the app always proxies FX Comp requests to `FXCOMP_REMOTE_URL`.
+- Without `FXCOMP_REMOTE_ONLY`, the app tries local Python first and automatically falls back to remote when local compiler infrastructure is unavailable.
 
 ## Notes
 

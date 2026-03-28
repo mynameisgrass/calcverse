@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 
 const FX_ROOT = path.join(process.cwd(), "ollama-discord-bot", "fxesplus");
+const FXCOMP_REMOTE_URL = String(process.env.FXCOMP_REMOTE_URL || "").trim().replace(/\/+$/, "");
+const FXCOMP_REMOTE_ONLY = String(process.env.FXCOMP_REMOTE_ONLY || "").trim() === "1";
 
 const FX_MODEL_ORDER = [
   "580vnx",
@@ -77,6 +79,51 @@ const FX_MODELS = {
 };
 
 const DEFAULT_TIMEOUT_MS = 30000;
+
+function remoteConfigured() {
+  return Boolean(FXCOMP_REMOTE_URL);
+}
+
+function shouldFallbackToRemote(errorMessage) {
+  const message = String(errorMessage || "").toLowerCase();
+  return (
+    message.includes("failed to start python process") ||
+    message.includes("no fx compiler models are available") ||
+    message.includes("fxesplus folder not found") ||
+    message.includes("spawn") ||
+    message.includes("enoent") ||
+    message.includes("filenotfounderror")
+  );
+}
+
+async function callRemoteFxcomp(method, payload) {
+  if (!remoteConfigured()) {
+    throw new Error("Remote fxcomp URL is not configured.");
+  }
+
+  const response = await fetch(FXCOMP_REMOTE_URL, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: method === "POST" ? JSON.stringify(payload || {}) : undefined,
+  });
+
+  const text = await response.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Remote fxcomp returned non-JSON response (HTTP ${response.status}).`);
+  }
+
+  if (!response.ok || !json?.ok) {
+    const remoteError = json?.error || `Remote fxcomp error (HTTP ${response.status}).`;
+    throw new Error(remoteError);
+  }
+
+  return json;
+}
 
 function getPythonCommand() {
   if (process.env.PYTHON_BIN && process.env.PYTHON_BIN.trim()) {
@@ -171,13 +218,62 @@ function payloadError(response, statusCode, message) {
 
 export default async function handler(request, response) {
   if (request.method === "GET") {
+    if (FXCOMP_REMOTE_ONLY) {
+      try {
+        const remotePayload = await callRemoteFxcomp("GET");
+        response.status(200).json({
+          ...remotePayload,
+          mode: "remote-only",
+          remoteConfigured: true,
+        });
+      } catch (error) {
+        payloadError(response, 502, `Remote fxcomp failed: ${error.message}`);
+      }
+      return;
+    }
+
     const models = FX_MODEL_ORDER.map((id) => buildModelMeta(FX_MODELS[id]));
+    const hasAvailableLocal = models.some((model) => model.available);
+
+    if (!hasAvailableLocal && remoteConfigured()) {
+      try {
+        const remotePayload = await callRemoteFxcomp("GET");
+        response.status(200).json({
+          ...remotePayload,
+          mode: "remote-fallback",
+          remoteConfigured: true,
+          localFxRoot: FX_ROOT,
+          localFxRootExists: fs.existsSync(FX_ROOT),
+        });
+        return;
+      } catch (error) {
+        response.status(200).json({
+          ok: true,
+          fxRoot: FX_ROOT,
+          fxRootExists: fs.existsSync(FX_ROOT),
+          pythonCommand: getPythonCommand(),
+          remoteConfigured: true,
+          remoteWarning: error.message,
+          models: models.map((model) => ({
+            id: model.id,
+            label: model.label,
+            formats: model.formats,
+            targets: model.targets,
+            defaultFormat: model.defaultFormat,
+            defaultTarget: model.defaultTarget,
+            available: model.available,
+          })),
+        });
+        return;
+      }
+    }
 
     response.status(200).json({
       ok: true,
       fxRoot: FX_ROOT,
       fxRootExists: fs.existsSync(FX_ROOT),
       pythonCommand: getPythonCommand(),
+      remoteConfigured: remoteConfigured(),
       models: models.map((model) => ({
         id: model.id,
         label: model.label,
@@ -213,8 +309,53 @@ export default async function handler(request, response) {
   const requestedTarget = String(request.body?.target || "").trim();
   const timeoutMs = parseTimeout(request.body?.timeoutMs);
 
+  if (FXCOMP_REMOTE_ONLY) {
+    try {
+      const remoteResult = await callRemoteFxcomp("POST", {
+        model: requestedModel,
+        format: requestedFormat,
+        target: requestedTarget,
+        timeoutMs,
+        program,
+      });
+      response.status(200).json({
+        ...remoteResult,
+        mode: "remote-only",
+      });
+    } catch (error) {
+      payloadError(response, 502, `Remote fxcomp failed: ${error.message}`);
+    }
+    return;
+  }
+
   const availableModels = getAvailableModels();
+  const tryRemoteFallback = async (localError) => {
+    if (!remoteConfigured()) return false;
+
+    try {
+      const remoteResult = await callRemoteFxcomp("POST", {
+        model: requestedModel,
+        format: requestedFormat,
+        target: requestedTarget,
+        timeoutMs,
+        program,
+      });
+
+      response.status(200).json({
+        ...remoteResult,
+        mode: "remote-fallback",
+        localWarning: localError,
+      });
+      return true;
+    } catch (remoteError) {
+      payloadError(response, 500, `${localError} | Remote fallback failed: ${remoteError.message}`);
+      return true;
+    }
+  };
+
   if (!availableModels.length) {
+    const handled = await tryRemoteFallback("No fx compiler models are available.");
+    if (handled) return;
     payloadError(response, 500, "No fx compiler models are available.");
     return;
   }
@@ -253,12 +394,21 @@ export default async function handler(request, response) {
         }
       }
 
-      payloadError(response, 422, `All models failed. ${errors.join(" | ")}`);
+      const allErrorMessage = `All models failed. ${errors.join(" | ")}`;
+      if (shouldFallbackToRemote(allErrorMessage)) {
+        const handled = await tryRemoteFallback(allErrorMessage);
+        if (handled) return;
+      }
+
+      payloadError(response, 422, allErrorMessage);
       return;
     }
 
     const selected = availableModels.find((model) => model.id === requestedModel);
     if (!selected) {
+      const handled = await tryRemoteFallback("Requested model is not available.");
+      if (handled) return;
+
       payloadError(response, 400, "Requested model is not available.");
       return;
     }
@@ -266,6 +416,11 @@ export default async function handler(request, response) {
     const result = await compileWithModel(selected);
     response.status(200).json(result);
   } catch (error) {
+    if (shouldFallbackToRemote(error.message)) {
+      const handled = await tryRemoteFallback(error.message || "Compilation failed.");
+      if (handled) return;
+    }
+
     payloadError(response, 500, error.message || "Compilation failed.");
   }
 }
