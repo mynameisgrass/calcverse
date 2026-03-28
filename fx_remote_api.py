@@ -137,21 +137,60 @@ class BackendState:
         self.root = Path(".")
         self.models: Dict[str, ModelConfig] = {}
         self.cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+        self.candidate_fx_paths: List[str] = []
+        self.candidate_compiler_paths: List[str] = []
 
     def detect(self) -> None:
-        cwd = Path.cwd()
+        cwd = Path.cwd().resolve()
+        script_dir = Path(__file__).resolve().parent
+        home_dir = Path.home().resolve()
 
-        fxesplus_candidates = [
-            os.getenv("FX_FXESPLUS_ROOT", ""),
-            str(cwd / "ollama-discord-bot" / "fxesplus"),
-            str(cwd / "fxesplus"),
-        ]
+        search_roots = self._unique_paths(
+            [
+                cwd,
+                script_dir,
+                script_dir.parent,
+                cwd / "calcverse-next",
+                script_dir / "calcverse-next",
+                home_dir / "calcverse-next",
+                cwd / "calcverse",
+                script_dir / "calcverse",
+                home_dir / "calcverse",
+                cwd / "repo" / "calcverse-next",
+                script_dir / "repo" / "calcverse-next",
+                home_dir / "repo" / "calcverse-next",
+            ]
+        )
 
-        compiler_candidates = [
-            os.getenv("FX_COMPILER_ROOT", ""),
-            str(cwd / "compiler" / "compiler"),
-            str(cwd / "compiler"),
-        ]
+        fxesplus_candidates: List[str] = []
+        compiler_candidates: List[str] = []
+
+        configured_fxesplus = os.getenv("FX_FXESPLUS_ROOT", "").strip()
+        configured_compiler = os.getenv("FX_COMPILER_ROOT", "").strip()
+        if configured_fxesplus:
+            fxesplus_candidates.append(configured_fxesplus)
+        if configured_compiler:
+            compiler_candidates.append(configured_compiler)
+
+        for root in search_roots:
+            fxesplus_candidates.extend(
+                [
+                    str(root / "ollama-discord-bot" / "fxesplus"),
+                    str(root / "fxesplus"),
+                ]
+            )
+            compiler_candidates.extend(
+                [
+                    str(root / "compiler" / "compiler"),
+                    str(root / "compiler"),
+                ]
+            )
+
+        fxesplus_candidates = self._unique_strings(fxesplus_candidates)
+        compiler_candidates = self._unique_strings(compiler_candidates)
+
+        self.candidate_fx_paths = fxesplus_candidates
+        self.candidate_compiler_paths = compiler_candidates
 
         fx_root = self._first_existing_dir(fxesplus_candidates)
         if fx_root and (fx_root / "580vnx" / "compiler_.py").exists():
@@ -181,6 +220,30 @@ class BackendState:
         self.backend_type = "none"
         self.root = cwd
         self.models = {}
+
+    @staticmethod
+    def _unique_strings(values: List[str]) -> List[str]:
+        out: List[str] = []
+        seen = set()
+        for value in values:
+            key = value.strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+        return out
+
+    @staticmethod
+    def _unique_paths(paths: List[Path]) -> List[Path]:
+        out: List[Path] = []
+        seen = set()
+        for p in paths:
+            key = str(p)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(p)
+        return out
 
     @staticmethod
     def _first_existing_dir(candidates: List[str]) -> Optional[Path]:
@@ -367,6 +430,10 @@ def metadata_payload() -> Dict[str, Any]:
         "backendType": STATE.backend_type,
         "backendRoot": str(STATE.root),
         "pythonCommand": get_python_bin(),
+        "cwd": str(Path.cwd().resolve()),
+        "scriptDir": str(Path(__file__).resolve().parent),
+        "fxCandidates": STATE.candidate_fx_paths[:12],
+        "compilerCandidates": STATE.candidate_compiler_paths[:12],
         "models": models,
     }
 
@@ -422,7 +489,17 @@ class FxApiHandler(BaseHTTPRequestHandler):
             return
 
         if STATE.backend_type == "none":
-            self._send_json(500, {"ok": False, "error": "No compiler backend detected on server."})
+            self._send_json(
+                500,
+                {
+                    "ok": False,
+                    "error": (
+                        "No compiler backend detected on server. "
+                        "Set FX_FXESPLUS_ROOT to your fxesplus folder "
+                        "or FX_COMPILER_ROOT to your compiler folder."
+                    ),
+                },
+            )
             return
 
         try:
