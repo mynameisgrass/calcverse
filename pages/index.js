@@ -1027,7 +1027,7 @@ export default function Home() {
 
     async function loadFxModels() {
       try {
-        const response = await fetch("https://casaserver.tailddbdaf.ts.net:8443/api/fxcomp");
+        const response = await fetch("https://casaserver.tailddbdaf.ts.net:8443/fx/api");
         const payload = await response.json();
 
         if (!response.ok || !payload.ok) {
@@ -1863,7 +1863,7 @@ export default function Home() {
     setFxBusy(true);
 
     try {
-      const response = await fetch("/api/fxcomp", {
+      const response = await fetch("/fx/api", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
