@@ -317,7 +317,11 @@ def pick(value: str, allowed: List[str], fallback: str) -> str:
 
 def should_retry_580_full(error_text: str) -> bool:
     s = (error_text or "").lower()
-    return "unrecognized command" in s or "appears twice" in s
+    return (
+        "unrecognized command" in s
+        or "unrecognized arguments" in s
+        or "appears twice" in s
+    )
 
 
 def cache_key(model_id: str, fmt: str, target: str, program: str) -> str:
