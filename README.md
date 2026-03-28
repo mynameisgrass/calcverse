@@ -61,8 +61,13 @@ http://localhost:3000
 
 - The FX compiler panel runs Python scripts from `ollama-discord-bot/fxesplus` through Next API routes.
 - The `580vnx` model now uses merged improvements from the newer compiler algorithm package.
+- Auto mode prioritizes faster local models first to reduce compile latency.
+- `580vnx` uses a fast compile path (`--command-source gadgets`) with automatic fallback to full mode when needed.
 - Ensure Python is available on the host machine.
 - Optional: set `PYTHON_BIN` if your Python executable is not on the default command (`python` on Windows, `python3` on Linux/macOS).
+- Optional performance envs:
+  - `FX_ENABLE_FAST_580VNX=1`
+  - `FX_CACHE_TTL_MS=120000`
 
 ### Vercel With FX Comp Enabled
 
@@ -76,6 +81,10 @@ Node serverless functions may not always allow local Python execution. To keep F
 Behavior:
 - With `FXCOMP_REMOTE_ONLY=1`, the app always proxies FX Comp requests to `FXCOMP_REMOTE_URL`.
 - Without `FXCOMP_REMOTE_ONLY`, the app tries local Python first and automatically falls back to remote when local compiler infrastructure is unavailable.
+
+### Environment Setup
+
+- Use `.env.example` as the baseline and define your local values in `.env.local`.
 
 ## Notes
 

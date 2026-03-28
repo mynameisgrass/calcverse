@@ -5,6 +5,7 @@ import path from "path";
 const FX_ROOT = path.join(process.cwd(), "ollama-discord-bot", "fxesplus");
 const FXCOMP_REMOTE_URL = String(process.env.FXCOMP_REMOTE_URL || "").trim().replace(/\/+$/, "");
 const FXCOMP_REMOTE_ONLY = String(process.env.FXCOMP_REMOTE_ONLY || "").trim() === "1";
+const FX_ENABLE_FAST_580VNX = String(process.env.FX_ENABLE_FAST_580VNX || "1").trim() !== "0";
 
 const FX_MODEL_ORDER = [
   "580vnx",
@@ -13,6 +14,16 @@ const FX_MODEL_ORDER = [
   "82espa",
   "991cnx",
   "991cnx-emu",
+];
+
+// Prefer fast/stable compilers for auto mode; explicit model selection is unchanged.
+const FX_AUTO_MODEL_ORDER = [
+  "580vnx-emu",
+  "580vnx",
+  "991cnx",
+  "991cnx-emu",
+  "570esp",
+  "82espa",
 ];
 
 const FX_MODELS = {
@@ -79,6 +90,60 @@ const FX_MODELS = {
 };
 
 const DEFAULT_TIMEOUT_MS = 30000;
+const CACHE_MAX_ITEMS = 128;
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+const FX_CACHE_TTL_MS = parsePositiveInt(process.env.FX_CACHE_TTL_MS, 120000);
+const FX_COMPILE_CACHE = new Map();
+
+function buildCacheKey({ model, format, target, program }) {
+  return [model, format, target, program].join("\u0000");
+}
+
+function getCachedCompile(cacheKey) {
+  const entry = FX_COMPILE_CACHE.get(cacheKey);
+  if (!entry) return null;
+
+  if (Date.now() > entry.expiresAt) {
+    FX_COMPILE_CACHE.delete(cacheKey);
+    return null;
+  }
+
+  return entry.payload;
+}
+
+function setCachedCompile(cacheKey, payload) {
+  FX_COMPILE_CACHE.set(cacheKey, {
+    payload,
+    expiresAt: Date.now() + FX_CACHE_TTL_MS,
+  });
+
+  while (FX_COMPILE_CACHE.size > CACHE_MAX_ITEMS) {
+    const oldestKey = FX_COMPILE_CACHE.keys().next().value;
+    if (!oldestKey) break;
+    FX_COMPILE_CACHE.delete(oldestKey);
+  }
+}
+
+function getAutoOrderedModels(availableModels) {
+  const rank = new Map(FX_AUTO_MODEL_ORDER.map((id, index) => [id, index]));
+  return [...availableModels].sort((a, b) => {
+    const ra = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+    const rb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+    if (ra !== rb) return ra - rb;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function shouldRetry580WithFullSource(errorMessage) {
+  const message = String(errorMessage || "").toLowerCase();
+  return message.includes("unrecognized command") || message.includes("appears twice");
+}
 
 function remoteConfigured() {
   return Boolean(FXCOMP_REMOTE_URL);
@@ -158,7 +223,8 @@ function pickValueOrDefault(value, allowed, fallback) {
 function runCompile(modelMeta, program, options) {
   const pythonCommand = getPythonCommand();
   const timeoutMs = options.timeoutMs;
-  const args = [modelMeta.scriptPath, "-f", options.format, "-t", options.target];
+  const extraArgs = Array.isArray(options.extraArgs) ? options.extraArgs : [];
+  const args = [modelMeta.scriptPath, "-f", options.format, "-t", options.target, ...extraArgs];
 
   return new Promise((resolve, reject) => {
     const proc = spawn(pythonCommand, args, { cwd: modelMeta.cwd });
@@ -363,6 +429,64 @@ export default async function handler(request, response) {
   const compileWithModel = async (modelMeta) => {
     const format = pickValueOrDefault(requestedFormat, modelMeta.formats, modelMeta.defaultFormat);
     const target = pickValueOrDefault(requestedTarget, modelMeta.targets, modelMeta.defaultTarget);
+    const cacheKey = buildCacheKey({
+      model: modelMeta.id,
+      format,
+      target,
+      program,
+    });
+
+    const cached = getCachedCompile(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const toPayload = (result, warnings) => ({
+      ok: true,
+      model: modelMeta.id,
+      format,
+      target,
+      output: result.stdout,
+      warnings,
+    });
+
+    if (FX_ENABLE_FAST_580VNX && modelMeta.id === "580vnx") {
+      try {
+        const fastResult = await runCompile(modelMeta, program, {
+          format,
+          target,
+          timeoutMs,
+          extraArgs: ["--command-source", "gadgets"],
+        });
+
+        const payload = toPayload(fastResult, fastResult.stderr || null);
+        setCachedCompile(cacheKey, payload);
+        return payload;
+      } catch (error) {
+        const message = String(error?.message || error || "");
+        if (!shouldRetry580WithFullSource(message)) {
+          throw error;
+        }
+
+        const fullResult = await runCompile(modelMeta, program, {
+          format,
+          target,
+          timeoutMs,
+          extraArgs: ["--command-source", "all"],
+        });
+
+        const combinedWarnings = [
+          "Fast mode fallback: retried with full command-source=all.",
+          fullResult.stderr || null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const payload = toPayload(fullResult, combinedWarnings || null);
+        setCachedCompile(cacheKey, payload);
+        return payload;
+      }
+    }
 
     const result = await runCompile(modelMeta, program, {
       format,
@@ -370,21 +494,17 @@ export default async function handler(request, response) {
       timeoutMs,
     });
 
-    return {
-      ok: true,
-      model: modelMeta.id,
-      format,
-      target,
-      output: result.stdout,
-      warnings: result.stderr || null,
-    };
+    const payload = toPayload(result, result.stderr || null);
+    setCachedCompile(cacheKey, payload);
+    return payload;
   };
 
   try {
     if (requestedModel === "auto") {
       const errors = [];
+      const autoOrderedModels = getAutoOrderedModels(availableModels);
 
-      for (const modelMeta of availableModels) {
+      for (const modelMeta of autoOrderedModels) {
         try {
           const result = await compileWithModel(modelMeta);
           response.status(200).json(result);
