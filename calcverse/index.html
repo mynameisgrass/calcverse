@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calcverse - All-in-One Calculator Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-layer" aria-hidden="true"></div>
+    <div class="orb orb-one" aria-hidden="true"></div>
+    <div class="orb orb-two" aria-hidden="true"></div>
+    <div class="orb orb-three" aria-hidden="true"></div>
+    <div class="grid-overlay" aria-hidden="true"></div>
+
+    <header class="hero">
+      <p class="eyebrow">Free-host ready on Vercel and GitHub Pages</p>
+      <h1>Calcverse</h1>
+      <p class="subtitle">
+        A stylish all-in-one calculator for everyday math, scientific expressions, unit conversion,
+        and quick problem-solving tools.
+      </p>
+
+      <div class="tab-bar" role="tablist" aria-label="Calculator Sections">
+        <button class="tab active" role="tab" aria-selected="true" data-panel-target="basic-panel">Basic</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel-target="science-panel">Scientific</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel-target="converter-panel">Converter</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel-target="tools-panel">Math Tools</button>
+      </div>
+    </header>
+
+    <main class="app-grid">
+      <section id="basic-panel" class="panel active" role="tabpanel">
+        <div class="panel-head">
+          <h2>Basic Calculator</h2>
+          <p>Tap buttons or use your keyboard for fast input.</p>
+        </div>
+
+        <div class="calc-display-wrap">
+          <div id="basic-expression" class="expression" aria-live="polite">0</div>
+          <div id="basic-result" class="result" aria-live="polite">0</div>
+        </div>
+
+        <div class="keypad" id="basic-keypad">
+          <button class="key action" data-action="clear">C</button>
+          <button class="key action" data-action="delete">DEL</button>
+          <button class="key" data-value="(">(</button>
+          <button class="key" data-value=")">)</button>
+          <button class="key operator" data-value="/">/</button>
+
+          <button class="key" data-value="7">7</button>
+          <button class="key" data-value="8">8</button>
+          <button class="key" data-value="9">9</button>
+          <button class="key operator" data-value="*">x</button>
+          <button class="key operator" data-value="%">%</button>
+
+          <button class="key" data-value="4">4</button>
+          <button class="key" data-value="5">5</button>
+          <button class="key" data-value="6">6</button>
+          <button class="key operator" data-value="-">-</button>
+          <button class="key" data-action="ans">Ans</button>
+
+          <button class="key" data-value="1">1</button>
+          <button class="key" data-value="2">2</button>
+          <button class="key" data-value="3">3</button>
+          <button class="key operator" data-value="+">+</button>
+          <button class="key equals" data-action="evaluate">=</button>
+
+          <button class="key zero" data-value="0">0</button>
+          <button class="key" data-value=".">.</button>
+        </div>
+      </section>
+
+      <section id="science-panel" class="panel" role="tabpanel" aria-hidden="true">
+        <div class="panel-head">
+          <h2>Scientific Evaluator</h2>
+          <p>Supports trigonometry, powers, factorial, logarithms, and constants.</p>
+        </div>
+
+        <label for="science-input" class="label">Expression</label>
+        <input
+          id="science-input"
+          class="text-input"
+          type="text"
+          placeholder="Example: sin(45) + sqrt(16) + 5!"
+          spellcheck="false"
+        />
+
+        <div class="science-controls">
+          <div class="mode-toggle" role="group" aria-label="Angle Mode">
+            <button id="mode-deg" class="mode-btn active" type="button">DEG</button>
+            <button id="mode-rad" class="mode-btn" type="button">RAD</button>
+          </div>
+          <button id="science-eval" class="primary-btn" type="button">Evaluate</button>
+          <button id="science-clear" class="ghost-btn" type="button">Clear</button>
+        </div>
+
+        <div class="science-pad" id="science-pad">
+          <button class="chip" data-insert="sin(">sin</button>
+          <button class="chip" data-insert="cos(">cos</button>
+          <button class="chip" data-insert="tan(">tan</button>
+          <button class="chip" data-insert="asin(">asin</button>
+          <button class="chip" data-insert="acos(">acos</button>
+          <button class="chip" data-insert="atan(">atan</button>
+          <button class="chip" data-insert="sqrt(">sqrt</button>
+          <button class="chip" data-insert="abs(">abs</button>
+          <button class="chip" data-insert="ln(">ln</button>
+          <button class="chip" data-insert="log(">log</button>
+          <button class="chip" data-insert="^">^</button>
+          <button class="chip" data-insert="!">n!</button>
+          <button class="chip" data-insert="pi">pi</button>
+          <button class="chip" data-insert="e">e</button>
+          <button class="chip" data-insert="(">(</button>
+          <button class="chip" data-insert=")">)</button>
+        </div>
+
+        <div class="result-card" id="science-result" aria-live="polite">Result: -</div>
+      </section>
+
+      <section id="converter-panel" class="panel" role="tabpanel" aria-hidden="true">
+        <div class="panel-head">
+          <h2>Smart Converter</h2>
+          <p>Switch categories and convert instantly.</p>
+        </div>
+
+        <div class="converter-grid">
+          <div>
+            <label class="label" for="convert-category">Category</label>
+            <select id="convert-category" class="select-input">
+              <option value="length">Length</option>
+              <option value="weight">Weight</option>
+              <option value="temperature">Temperature</option>
+              <option value="speed">Speed</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="label" for="convert-input">Value</label>
+            <input id="convert-input" class="text-input" type="number" value="1" />
+          </div>
+
+          <div>
+            <label class="label" for="convert-from">From</label>
+            <select id="convert-from" class="select-input"></select>
+          </div>
+
+          <div>
+            <label class="label" for="convert-to">To</label>
+            <select id="convert-to" class="select-input"></select>
+          </div>
+        </div>
+
+        <div class="converter-actions">
+          <button id="convert-swap" class="ghost-btn" type="button">Swap Units</button>
+        </div>
+
+        <div class="result-card" id="convert-output" aria-live="polite">Converted value: -</div>
+      </section>
+
+      <section id="tools-panel" class="panel" role="tabpanel" aria-hidden="true">
+        <div class="panel-head">
+          <h2>Math Tools</h2>
+          <p>Quick utility tools you can use in everyday life and school work.</p>
+        </div>
+
+        <div class="tool-grid">
+          <article class="tool-card">
+            <h3>BMI Checker</h3>
+            <label class="label" for="bmi-weight">Weight (kg)</label>
+            <input id="bmi-weight" class="text-input" type="number" placeholder="65" />
+            <label class="label" for="bmi-height">Height (cm)</label>
+            <input id="bmi-height" class="text-input" type="number" placeholder="172" />
+            <button id="bmi-calc" class="primary-btn" type="button">Calculate BMI</button>
+            <p id="bmi-output" class="tool-output">BMI: -</p>
+          </article>
+
+          <article class="tool-card">
+            <h3>Percentage Lab</h3>
+            <label class="label" for="percent-x">X</label>
+            <input id="percent-x" class="text-input" type="number" placeholder="30" />
+            <label class="label" for="percent-y">Y</label>
+            <input id="percent-y" class="text-input" type="number" placeholder="120" />
+            <button id="percent-calc" class="primary-btn" type="button">Run</button>
+            <p id="percent-output" class="tool-output">Result: -</p>
+          </article>
+
+          <article class="tool-card">
+            <h3>Quadratic Solver</h3>
+            <label class="label" for="quad-a">a</label>
+            <input id="quad-a" class="text-input" type="number" placeholder="1" />
+            <label class="label" for="quad-b">b</label>
+            <input id="quad-b" class="text-input" type="number" placeholder="-3" />
+            <label class="label" for="quad-c">c</label>
+            <input id="quad-c" class="text-input" type="number" placeholder="2" />
+            <button id="quad-calc" class="primary-btn" type="button">Solve</button>
+            <p id="quad-output" class="tool-output">Roots: -</p>
+          </article>
+        </div>
+      </section>
+
+      <aside id="history-panel" class="panel history-panel">
+        <div class="history-head">
+          <h2>History</h2>
+          <button id="history-clear" class="ghost-btn" type="button">Clear</button>
+        </div>
+        <p class="history-note">Recent calculations from basic and scientific mode.</p>
+        <ul id="history-list" class="history-list"></ul>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <p>Built as a static app so you can host it for free on Vercel or GitHub Pages.</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
