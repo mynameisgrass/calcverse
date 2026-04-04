@@ -91,6 +91,8 @@ const FX_MODELS = {
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const CACHE_MAX_ITEMS = 128;
+const MAX_PROGRAM_BYTES = 120000;
+const ORG_EXPR_SAFE_RE = /^[0-9a-fxob_()+\-*/%<>&|^~\s]+$/i;
 
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -341,6 +343,37 @@ function parseTimeout(rawTimeout) {
   return Math.max(2000, Math.min(parsed, 90000));
 }
 
+function validateProgramSafety(program) {
+  if (Buffer.byteLength(program, "utf8") > MAX_PROGRAM_BYTES) {
+    throw new Error(`Program too large (max ${MAX_PROGRAM_BYTES} bytes).`);
+  }
+
+  if (program.includes("\u0000")) {
+    throw new Error("Program contains invalid NUL byte.");
+  }
+
+  const lines = String(program).split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.split("#")[0].trim();
+    if (!line) continue;
+
+    // '$' executes Python expressions in legacy compiler syntax; disable for API safety.
+    if (line.startsWith("$")) {
+      throw new Error("Unsafe '$' directive is not allowed in web compilation.");
+    }
+
+    if (/^org\b/i.test(line)) {
+      const expr = line.slice(3).trim();
+      if (!expr) {
+        throw new Error("Invalid org directive: missing expression.");
+      }
+      if (!ORG_EXPR_SAFE_RE.test(expr)) {
+        throw new Error("Invalid org directive: expression contains forbidden tokens.");
+      }
+    }
+  }
+}
+
 function normalizeModelRequest(modelId) {
   const value = String(modelId || "auto").trim();
   return value || "auto";
@@ -438,6 +471,13 @@ export default async function handler(request, response) {
   const program = String(request.body?.program || "");
   if (!program.trim()) {
     payloadError(response, 400, "Program input is empty.");
+    return;
+  }
+
+  try {
+    validateProgramSafety(program);
+  } catch (error) {
+    payloadError(response, 400, error.message || "Program input failed security checks.");
     return;
   }
 

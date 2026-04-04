@@ -1,11 +1,71 @@
 #modified by hieuxyz(comment,supported by casio2k9) last modified at 12:09 AM 11-22-2024(GMT+7), new fix by @Ilovecode_2010
 import re
 import sys
+import ast
 from text import char_to_hex  # Import char_to_hex từ file text.py
 from functools import lru_cache
 
 # max_call_adr = 0x1ffff
 max_call_adr = 0x3ffff
+
+_SAFE_INT_BIN_OPS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.Mod: lambda a, b: a % b,
+    ast.FloorDiv: lambda a, b: a // b,
+    ast.LShift: lambda a, b: a << b,
+    ast.RShift: lambda a, b: a >> b,
+    ast.BitAnd: lambda a, b: a & b,
+    ast.BitOr: lambda a, b: a | b,
+    ast.BitXor: lambda a, b: a ^ b,
+    ast.Pow: lambda a, b: a ** b,
+}
+
+_SAFE_INT_UNARY_OPS = {
+    ast.UAdd: lambda a: +a,
+    ast.USub: lambda a: -a,
+    ast.Invert: lambda a: ~a,
+}
+
+
+def _safe_eval_int_node(node):
+    if isinstance(node, ast.Expression):
+        return _safe_eval_int_node(node.body)
+
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, int):
+            raise ValueError('Only integer constants are allowed.')
+        return node.value
+
+    if isinstance(node, ast.UnaryOp):
+        op_type = type(node.op)
+        if op_type not in _SAFE_INT_UNARY_OPS:
+            raise ValueError('Unsupported unary operator in expression.')
+        return _SAFE_INT_UNARY_OPS[op_type](_safe_eval_int_node(node.operand))
+
+    if isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        left = _safe_eval_int_node(node.left)
+        right = _safe_eval_int_node(node.right)
+
+        if op_type is ast.Div:
+            result = left / right
+            if int(result) != result:
+                raise ValueError('Division result must be an integer.')
+            return int(result)
+
+        if op_type not in _SAFE_INT_BIN_OPS:
+            raise ValueError('Unsupported binary operator in expression.')
+
+        return _SAFE_INT_BIN_OPS[op_type](left, right)
+
+    raise ValueError('Unsupported expression syntax.')
+
+
+def safe_eval_int(expr):
+    parsed = ast.parse(expr, mode='eval')
+    return _safe_eval_int_node(parsed)
 
 def set_font(font_):
     global font, font_assoc
@@ -668,12 +728,7 @@ def process(line):
 
     elif line[0] == '$':
         ''' Python eval. The result will be processed as commands. '''
-        x = eval(line[1:])
-        if isinstance(x, str):
-            process(x)
-        elif isinstance(x, list) or isinstance(x, tuple):
-            for command in x:
-                process(command)
+        raise ValueError("Unsafe '$' directive is disabled.")
 
     elif line.startswith('org'):
         ''' Syntax: `org <expr>`
@@ -681,7 +736,7 @@ def process(line):
         Specify the address of this location after mapping.
         Only use this for loader mode.
         '''
-        hx = eval(line[3:])
+        hx = safe_eval_int(line[3:])
         home1 = hx - len(result)
         assert home is None or home == home1, 'Inconsistent value of `home`'
         home = home1

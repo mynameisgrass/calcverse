@@ -137,7 +137,7 @@ function createTrig(angleMode) {
 }
 
 function assertSafeExpression(rawInput) {
-  const allowedRaw = /^[0-9+\-*/().,%!\s^a-zA-Z]*$/;
+  const allowedRaw = /^[0-9+\-*/().,%!\s^a-zA-Z_]*$/;
   if (!allowedRaw.test(rawInput)) {
     throw new Error("Expression contains unsupported characters.");
   }
@@ -145,56 +145,186 @@ function assertSafeExpression(rawInput) {
 
 function normalizeExpression(rawInput) {
   let expr = rawInput.replace(/\u00d7/g, "*").replace(/\u00f7/g, "/");
-  expr = expr.replace(/\^/g, "**");
   expr = replaceFactorialSyntax(expr);
-
-  expr = expr
-    .replace(/\bpi\b/gi, "Math.PI")
-    .replace(/\be\b/g, "Math.E")
-    .replace(/\bsin\(/gi, "trig.sin(")
-    .replace(/\bcos\(/gi, "trig.cos(")
-    .replace(/\btan\(/gi, "trig.tan(")
-    .replace(/\basin\(/gi, "trig.asin(")
-    .replace(/\bacos\(/gi, "trig.acos(")
-    .replace(/\batan\(/gi, "trig.atan(")
-    .replace(/\bsqrt\(/gi, "Math.sqrt(")
-    .replace(/\babs\(/gi, "Math.abs(")
-    .replace(/\bln\(/gi, "Math.log(")
-    .replace(/\blog\(/gi, "Math.log10(");
 
   return expr;
 }
 
-function validateIdentifiers(expression) {
-  const identifiers = expression.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-  const allowedIdentifiers = new Set([
-    "Math",
-    "PI",
-    "E",
-    "trig",
-    "sin",
-    "cos",
-    "tan",
-    "asin",
-    "acos",
-    "atan",
-    "sqrt",
-    "abs",
-    "log",
-    "log10",
-    "fact",
-  ]);
+function tokenizeExpression(expression) {
+  const tokens = [];
+  let index = 0;
 
-  for (const identifier of identifiers) {
-    if (!allowedIdentifiers.has(identifier)) {
-      throw new Error("Unsupported function or token.");
+  while (index < expression.length) {
+    const char = expression[index];
+
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
     }
+
+    if (/\d|\./.test(char)) {
+      const match = expression.slice(index).match(/^(?:\d+(?:\.\d+)?|\.\d+)/);
+      if (!match) {
+        throw new Error("Invalid number format.");
+      }
+      tokens.push({ type: "number", value: Number.parseFloat(match[0]) });
+      index += match[0].length;
+      continue;
+    }
+
+    if (/[A-Za-z_]/.test(char)) {
+      const match = expression.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+      tokens.push({ type: "identifier", value: match[0] });
+      index += match[0].length;
+      continue;
+    }
+
+    if ("+-*/%^(),".includes(char)) {
+      tokens.push({ type: "operator", value: char });
+      index += 1;
+      continue;
+    }
+
+    throw new Error("Expression contains unsupported characters.");
   }
 
-  const allowedFinalChars = /^[0-9+\-*/().,%\sA-Za-z_]*$/;
-  if (!allowedFinalChars.test(expression)) {
+  return tokens;
+}
+
+function evaluateParsedExpression(expression, trig) {
+  const tokens = tokenizeExpression(expression);
+  const functions = {
+    sin: trig.sin,
+    cos: trig.cos,
+    tan: trig.tan,
+    asin: trig.asin,
+    acos: trig.acos,
+    atan: trig.atan,
+    sqrt: Math.sqrt,
+    abs: Math.abs,
+    ln: Math.log,
+    log: Math.log10,
+    fact: factorial,
+  };
+
+  let index = 0;
+
+  function peek() {
+    return tokens[index] || null;
+  }
+
+  function consume(expected) {
+    const token = peek();
+    if (!token || (expected && token.value !== expected)) {
+      throw new Error("Invalid expression format.");
+    }
+    index += 1;
+    return token;
+  }
+
+  function parsePrimary() {
+    const token = peek();
+    if (!token) {
+      throw new Error("Invalid expression format.");
+    }
+
+    if (token.type === "number") {
+      consume();
+      return token.value;
+    }
+
+    if (token.type === "operator" && token.value === "(") {
+      consume("(");
+      const value = parseAddSub();
+      consume(")");
+      return value;
+    }
+
+    if (token.type === "identifier") {
+      const name = token.value.toLowerCase();
+      consume();
+
+      if (name === "pi") return Math.PI;
+      if (name === "e") return Math.E;
+
+      const fn = functions[name];
+      if (!fn) {
+        throw new Error("Unsupported function or token.");
+      }
+
+      consume("(");
+      const value = parseAddSub();
+      consume(")");
+      return fn(value);
+    }
+
     throw new Error("Invalid expression format.");
   }
+
+  function parseUnary() {
+    const token = peek();
+    if (token && token.type === "operator" && (token.value === "+" || token.value === "-")) {
+      consume();
+      const value = parseUnary();
+      return token.value === "-" ? -value : value;
+    }
+    return parsePrimary();
+  }
+
+  function parsePower() {
+    const left = parseUnary();
+    const token = peek();
+    if (token && token.type === "operator" && token.value === "^") {
+      consume("^");
+      const right = parsePower();
+      return left ** right;
+    }
+    return left;
+  }
+
+  function parseMulDiv() {
+    let value = parsePower();
+
+    while (true) {
+      const token = peek();
+      if (!token || token.type !== "operator" || !"*/%".includes(token.value)) {
+        break;
+      }
+
+      consume();
+      const right = parsePower();
+      if (token.value === "*") value *= right;
+      if (token.value === "/") value /= right;
+      if (token.value === "%") value %= right;
+    }
+
+    return value;
+  }
+
+  function parseAddSub() {
+    let value = parseMulDiv();
+
+    while (true) {
+      const token = peek();
+      if (!token || token.type !== "operator" || !"+-".includes(token.value)) {
+        break;
+      }
+
+      consume();
+      const right = parseMulDiv();
+      if (token.value === "+") value += right;
+      if (token.value === "-") value -= right;
+    }
+
+    return value;
+  }
+
+  const result = parseAddSub();
+  if (index !== tokens.length) {
+    throw new Error("Invalid expression format.");
+  }
+
+  return result;
 }
 
 function evaluateExpression(rawInput, angleMode = "deg") {
@@ -205,10 +335,7 @@ function evaluateExpression(rawInput, angleMode = "deg") {
 
   assertSafeExpression(source);
   const expression = normalizeExpression(source);
-  validateIdentifiers(expression);
-
-  const evaluator = new Function("trig", "fact", "return (" + expression + ");");
-  const result = evaluator(createTrig(angleMode), factorial);
+  const result = evaluateParsedExpression(expression, createTrig(angleMode));
 
   if (typeof result !== "number" || !Number.isFinite(result)) {
     throw new Error("Math error.");
